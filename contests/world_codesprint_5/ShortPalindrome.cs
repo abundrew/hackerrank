@@ -11,12 +11,34 @@ class Solution3
 {
     static long R = 1000000007;
 
+    static long C4K(long k)
+    {
+        if (k < 4) return 0;
+        long[] kk = new long[4];
+        kk[0] = k;
+        for (int i = 1; i < 4; i++) kk[i] = kk[i - 1] - 1;
+        for (int i = 4; i > 1; i--)
+            for (int j = 0; j < 4; j++)
+                if (kk[j] % i == 0)
+                {
+                    kk[j] /= i;
+                    break;
+                }
+        long c4k = 1;
+        for (int i = 0; i < 4; i++)
+        {
+            c4k *= kk[i];
+            c4k %= R;
+        }
+        return c4k;
+    }
+
     static void Main(String[] args)
     {
         TextReader tIn = Console.In;
         TextWriter tOut = Console.Out;
 
-        tIn = new StringReader(@"ghhggh");
+        tIn = new StringReader(@"aaaaz");
 
         byte valA = Convert.ToByte('a');
 
@@ -24,21 +46,32 @@ class Solution3
         int M = B.Max() + 1;
 
         long X = 0;
-        int[] NN = new int[M];
 
-        for (int a = 0; a < B.Length - 3; a++)
+        long[] NN = new long[M];
+        foreach (int b in B) NN[b]++;
+
+        for (int i = 0; i < M; i++) X += C4K(NN[i]);
+
+        long[] AA = new long[M];
+        long[,] AB = new long[M, M];
+
+        for (int a = 0; a < B.Length; a++)
         {
-            Array.Clear(NN, 0, M);
-            long Y = 0;
-            for (int d = a + 2; d < B.Length; d++)
+
+            for (int b = 0; b < M; b++)
             {
-                Y += NN[B[d - 1]];
-                Y %= R;
-                NN[B[d - 1]]++;
-                if (B[a] == B[d]) X += Y;
+                if (b != B[a])
+                {
+                    X += AB[b, B[a]] * (NN[b] - AA[b]);
+                    X %= R;
+                }
+
+                AB[b, B[a]] += AA[b];
+                AB[b, B[a]] %= R;
             }
-            X %= R;
+            AA[B[a]]++;
         }
+
         tOut.WriteLine(X);
 
         tIn.ReadLine();
