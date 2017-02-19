@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -10,6 +10,14 @@ using System.Text;
 /// </summary>
 class Solution4
 {
+    // -------------------------------------------------------------------------
+    //
+    // Tree structure:
+    //
+    // int Adj(int v, int ix) - a ix-th node adjacent to v
+    // int Deg(int v) - number of nodes adjacent to v (including the parent)
+    // int Parent(int v) - the parent node of v
+    //
     // -------------------------------------------------------------------------
     public class TreePath
     {
@@ -115,92 +123,102 @@ class Solution4
     // -------------------------------------------------------------------------
 
     const int R = 1000000007;
-    static TreePath T = null;
-    static int[] DP0 = null;
-    static int[] DP1 = null;
-    static int Ways(int v, bool plusParent)
-    {
-        if (v != 0 && T.Deg(v) == 2)
-        {
-            long a1 = 1, b1 = 0, a2 = 0, b2 = 1;
-            while (T.Deg(v) == 2)
-            {
-                long ta1 = a1, tb1 = b1;
-                a1 = (a1 + a2) % R;
-                b1 = (b1 + b2) % R;
-                a2 = ta1;
-                b2 = tb1;
-                v = T.Adj(v, 0) == T.Parent(v) ? T.Adj(v, 1) : T.Adj(v, 0);
-            }
-            return plusParent ? (int)(((a1 * Ways(v, true)) % R + (b1 * Ways(v, false)) % R) % R) : (int)(((a2 * Ways(v, true)) % R + (b2 * Ways(v, false)) % R) % R);
-        }
 
-        if (plusParent)
-        {
-            if (DP0[v] > -1) return DP0[v];
-            long K = 1;
-
-            int parent = T.Parent(v);
-            for (int i = 0; i < T.Deg(v); i++)
-            {
-                int u = T.Adj(v, i);
-                if (u != parent) K = (K * (Ways(u, true) + Ways(u, false))) % R;
-            }
-
-            DP0[v] = (int)K;
-
-            return DP0[v];
-        }
-        else
-        {
-            if (DP1[v] > -1) return DP1[v];
-
-            long K = 0;
-            int parent = T.Parent(v);
-            for (int x = 0; x < T.Deg(v); x++)
-            {
-                int ux = T.Adj(v, x);
-                if (ux == parent) continue;
-
-                long K1 = Ways(ux, true);
-                for (int i = 0; i < x; i++)
-                {
-                    int u = T.Adj(v, i);
-                    if (u != parent) K1 = (K1 * Ways(u, false)) % R;
-                }
-                for (int i = x + 1; i < T.Deg(v); i++)
-                {
-                    int u = T.Adj(v, i);
-                    if (u != parent) K1 = (K1 * (Ways(u, true) + Ways(u, false))) % R;
-                }
-                K = (K + K1) % R;
-            }
-            DP1[v] = (int)K;
-
-            return DP1[v];
-        }
-    }
     static void Main(String[] args)
     {
         TextReader tIn = Console.In;
         TextWriter tOut = Console.Out;
+
+//        tIn = new StringReader(@"5
+//1 2
+//1 3
+//3 4
+//3 5
+//");
 
         int N = int.Parse(tIn.ReadLine());
         int[][] E = new int[N - 1][];
         for (int i = 0; i < N - 1; i++)
             E[i] = tIn.ReadLine().Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries).Select(p => int.Parse(p) - 1).ToArray();
 
-        T = new TreePath(N, E);
-        DP0 = new int[N];
-        DP1 = new int[N];
-        for (int i = 0; i < N; i++)
+        TreePath tree = new TreePath(N, E);
+
+        //
+        // Number of ways to divide a subtree with root V is
+        // a SUM (number of ways to divide a subtree with root in Ui)
+        // where Ui - children of V.
+        //
+        // We consider 2 different cases for each node(v):
+        // 1) the node belongs to the same kingdom as its parent
+        // 2) the node doesn't belong to the same kingdom as its parent
+        //
+        // In case (1) all children (ui) can belong to any kingdom.
+        // In case (2) one of the children (ui) MUST belong to the same kingdom as the node.
+        //
+        // Let W0[v] = number of ways in case (1) and W1[v] = in case (2).
+        //
+        // W0[v] = (W0[u1] + W1[u1]) + (W0[u2] + W1[u2]) + (W0[u3] + W1[u3]) + ...
+        //
+        // W1[v] = W0[u1] + ((W0[u2] + W1[u2]) + (W0[u3] + W1[u3]) + ...) +
+        //         W1[u1] + W0[u2] + ((W0[u3] + W1[u3]) + (W0[u4] + W1[u4]) + ...) +
+        //         ... +
+        //         (W1[u1] + W1[u2] + ...) + W0[uk] + ((W0[uk1] + W1[uk1]) + (W0[uk2] + W1[uk2]) + ...) +
+        //         ...
+        //
+        // As the root doesn't have a parent then the solution is W1[1] * 2 (2 as the root can belong to any kingdom).
+        //
+        // First we put all nodes into the stack so the parent is always below all its children.
+        // Then we take nodes one by one from the stack and calculate ways0[v] and ways1[v]
+        // on the base of already calculated ways0[u] and ways1[u] (u - children of v).
+        //
+
+        Stack<int> stack = new Stack<int>();
+        Queue<int> que = new Queue<int>();
+        que.Enqueue(0);
+        while (que.Count > 0)
         {
-            DP0[i] = -1;
-            DP1[i] = -1;
+            int v = que.Dequeue();
+            stack.Push(v);
+            for (int i = 0; i < tree.Deg(v); i++)
+            {
+                int u = tree.Adj(v, i);
+                if (u != tree.Parent(v)) que.Enqueue(u);
+            }
         }
 
-        tOut.WriteLine((2L * Ways(0, false)) % R);
+        int[] ways0 = new int[N];
+        int[] ways1 = new int[N];
 
-        tIn.ReadLine();
+        while (stack.Count > 0)
+        {
+            int v = stack.Pop();
+            ways0[v] = 1;
+            ways1[v] = 0;
+            for (int i = 0; i < tree.Deg(v); i++)
+            {
+                int u = tree.Adj(v, i);
+                if (u != tree.Parent(v))
+                {
+                    ways0[v] = (int)(((long)ways0[v] * ((ways0[u] + ways1[u]) % R)) % R);
+
+                    long K1 = ways0[u];
+                    for (int j = 0; j < i; j++)
+                    {
+                        int u1 = tree.Adj(v, j);
+                        if (u1 != tree.Parent(v)) K1 = (K1 * ways1[u1]) % R;
+                    }
+                    for (int j = i + 1; j < tree.Deg(v); j++)
+                    {
+                        int u1 = tree.Adj(v, j);
+                        if (u1 != tree.Parent(v)) K1 = (K1 * ((ways0[u1] + ways1[u1]) % R)) % R;
+                    }
+                    ways1[v] = (int)((ways1[v] + K1) % R);
+                }
+            }
+        }
+
+        tOut.WriteLine((ways1[0] * 2) % R);
+
+        //tIn.ReadLine();
     }
 }
